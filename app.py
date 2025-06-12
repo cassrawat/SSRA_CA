@@ -1,38 +1,34 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.chat_models import ChatOpenAI
+from langchain.text_splitter import CharacterTextSplitter
 from langchain.chains.question_answering import load_qa_chain
-import os
+from langchain.llms import GPT4All
+from PyPDF2 import PdfReader
 
-st.set_page_config(page_title="Chat with Budget 2025 PDF", layout="wide")
-st.title("📊 Chat with Budget 2025 FAQs")
+st.set_page_config(page_title="Offline PDF Chatbot")
+st.title("📄 Chat with Budget 2025 (Offline)")
 
-openai_api_key = st.text_input("🔑 Enter your OpenAI API Key", type="password")
+# Load PDF
+reader = PdfReader("faqs-budget-2025.pdf")
+raw_text = ""
+for page in reader.pages:
+    content = page.extract_text()
+    if content:
+        raw_text += content
 
-if openai_api_key:
-    os.environ["OPENAI_API_KEY"] = openai_api_key
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+texts = text_splitter.split_text(raw_text)
 
-    with st.spinner("Processing PDF..."):
-        reader = PdfReader("faqs-budget-2025.pdf")
-        raw_text = ""
-        for page in reader.pages:
-            content = page.extract_text()
-            if content:
-                raw_text += content
+embeddings = HuggingFaceEmbeddings()
+db = FAISS.from_texts(texts, embeddings)
 
-        text_splitter = CharacterTextSplitter(separator="\n", chunk_size=1000, chunk_overlap=150)
-        texts = text_splitter.split_text(raw_text)
+# Load local model
+llm = GPT4All(model="./models/ggml-gpt4all-j-v1.3-groovy.bin", verbose=True)
 
-        embeddings = OpenAIEmbeddings()
-        db = FAISS.from_texts(texts, embeddings)
-
-    query = st.text_input("❓ Ask a question about Budget 2025:")
-    if query:
-        docs = db.similarity_search(query)
-        llm = ChatOpenAI(temperature=0)
-        chain = load_qa_chain(llm, chain_type="stuff")
-        response = chain.run(input_documents=docs, question=query)
-        st.success(response)
+query = st.text_input("Ask a question:")
+if query:
+    docs = db.similarity_search(query)
+    chain = load_qa_chain(llm, chain_type="stuff")
+    response = chain.run(input_documents=docs, question=query)
+    st.success(response)
