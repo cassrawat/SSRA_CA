@@ -1,7 +1,7 @@
 streamlit
 langchain
-langchain-community
-openai
-PyPDF2
 faiss-cpu
 tiktoken
+PyPDF2
+huggingface-hub
+gpt4all
